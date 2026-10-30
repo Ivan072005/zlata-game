@@ -194,7 +194,10 @@ const store = {
 };
 
 let me = store.get("game-me");
-let state = null, busy = false, lastRevealRound = null, timer = null;
+let state = null, lastRevealRound = null, pollTimer = null;
+// pending: идёт действие игрока (тянуть, ответить, добавить…). Опрос сервера его не блокирует.
+// epoch растёт с каждым действием: ответ опроса, начатого до действия, устарел и выбрасывается.
+let pending = false, epoch = 0;
 
 function burst(n = 24) {
   if (reduce) return;
@@ -213,8 +216,8 @@ function burst(n = 24) {
 
 async function api(method, body) {
   const url = `${API}?room=${encodeURIComponent(ROOM)}` + (method === "GET" ? `&me=${me}` : "");
-  const res = await fetch(url, method === "GET" ? {} : {
-    method, headers: { "content-type": "application/json" }, body: JSON.stringify({ ...body, me })
+  const res = await fetch(url, method === "GET" ? { cache: "no-store" } : {
+    method, cache: "no-store", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...body, me })
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "Сервер не отвечает. Попробуй ещё раз");
@@ -232,9 +235,12 @@ function renderHeader() {
 function renderControls(s) {
   const partner = me === "vanya" ? "zlata" : "vanya";
   const myTurn = !s.turn || s.turn === me;
-  $("turn").textContent = !s.turn ? "Тяните первый вопрос, кто угодно" : myTurn ? "Твоя очередь тянуть 🎲" : `Сейчас тянет ${NAMES[partner]}`;
-  $("draw").disabled = !myTurn || busy;
   const p = s.pool;
+  $("turn").textContent = !p.total ? "Сначала добавьте вопросы 👇"
+    : !p.left ? "Вопросы закончились: добавьте новые или начните круг заново"
+    : !s.turn ? "Тяните первый вопрос, кто угодно"
+    : myTurn ? "Твоя очередь тянуть 🎲" : `Сейчас тянет ${NAMES[partner]}`;
+  $("draw").disabled = !myTurn || pending || !p.left;
   $("pool").textContent = `в пуле ${p.total}: от Златы ${p.zlata}, от Вани ${p.vanya} · осталось ${p.left} · совпадений ${s.score.matches} из ${s.score.total}`;
   $("restart").hidden = !(p.total && !p.left);
 }
@@ -279,7 +285,7 @@ function render() {
     for (const [id, c] of [["optA", "a"], ["optB", "b"]]) {
       const el = $(id);
       el.querySelector(".txt").textContent = q[c];
-      el.disabled = answered;
+      el.disabled = answered || pending;
       el.classList.toggle("mine", s.mine === c);
       const tags = el.querySelector(".tags");
       tags.innerHTML = "";
@@ -316,50 +322,70 @@ function render() {
   }
 }
 
-async function run(fn) {
-  if (busy) return;
-  busy = true;
+// Действие игрока: выполняется сразу, даже если в этот момент идёт опрос сервера
+async function act(body, { onDone } = {}) {
+  if (pending) return;
+  pending = true; epoch++;
+  if (state) render();
   try {
-    state = await fn();
+    state = await api("POST", body);
     $("error").textContent = "";
+    onDone?.(state);
   } catch (e) {
     $("error").textContent = e.message;
   } finally {
-    busy = false;
+    pending = false; epoch++;
     if (state) render();
   }
 }
 
-const refresh = () => run(() => api("GET"));
-const draw = () => run(() => api("POST", { action: "draw", fromRound: state?.round ?? 0 }));
-const answer = a => run(() => api("POST", { action: "answer", round: state.round, answer: a }));
-const removeQuestion = id => run(() => api("POST", { action: "remove", id }));
-const restart = () => run(() => api("POST", { action: "restart" }));
-const showResetConfirm = show => { $("resetConfirm").hidden = !show; $("resetAsk").hidden = show; };
-async function resetGame() {
-  showResetConfirm(false);
-  await run(() => api("POST", { action: "reset" }));
-  $("addMsg").textContent = "Игра очищена. Можно добавлять вопросы заново 💌";
+// Опрос сервера: раз в 1.5 секунды, без наложений; устаревшие ответы не применяются
+async function poll() {
+  clearTimeout(pollTimer);
+  if (!me) return;
+  if (!pending && document.visibilityState === "visible") {
+    const started = epoch;
+    try {
+      const fresh = await api("GET");
+      if (!pending && started === epoch) {
+        state = fresh;
+        $("error").textContent = "";
+        render();
+      }
+    } catch (e) {
+      if (!state) $("error").textContent = e.message;
+    }
+  }
+  pollTimer = setTimeout(poll, 1500);
 }
 
-async function addQuestions(e) {
+const draw = () => act({ action: "draw", fromRound: state?.round ?? 0 });
+const answer = a => {
+  if (!state?.question || state.mine != null) return;
+  state.mine = a; // сразу показываем свой выбор
+  return act({ action: "answer", round: state.round, answer: a });
+};
+const removeQuestion = id => act({ action: "remove", id });
+const restart = () => act({ action: "restart" });
+const showResetConfirm = show => { $("resetConfirm").hidden = !show; $("resetAsk").hidden = show; };
+function resetGame() {
+  showResetConfirm(false);
+  act({ action: "reset" }, { onDone: () => { $("addMsg").textContent = "Игра очищена. Можно добавлять вопросы заново 💌"; } });
+}
+
+function addQuestions(e) {
   e.preventDefault();
   const text = $("addText").value;
   if (!text.trim()) { $("addMsg").textContent = "Вставь хотя бы один вопрос"; return; }
   $("addBtn").disabled = true;
-  try {
-    const res = await api("POST", { action: "add", text });
-    state = res;
-    $("addText").value = "";
-    $("addMsg").textContent = `Добавлено вопросов: ${res.added} 💌`;
-    render();
-  } catch (err) {
-    $("addMsg").textContent = err.message;
-  } finally { $("addBtn").disabled = false; }
+  act({ action: "add", text }, {
+    onDone: res => { $("addText").value = ""; $("addMsg").textContent = `Добавлено вопросов: ${res.added} 💌`; }
+  }).finally(() => { $("addBtn").disabled = false; });
 }
 
 function start() {
-  clearInterval(timer);
+  clearTimeout(pollTimer);
+  state = null;
   if (!me || !NAMES[me]) {
     $("pick").hidden = false;
     for (const id of ["game", "controls", "addForm", "resetBox"]) $(id).hidden = true;
@@ -367,9 +393,9 @@ function start() {
     return;
   }
   $("pick").hidden = true;
-  refresh();
-  timer = setInterval(() => { if (!busy && document.visibilityState === "visible") refresh(); }, 2000);
+  poll();
 }
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") poll(); });
 
 document.querySelectorAll("[data-me]").forEach(b => b.onclick = () => { me = b.dataset.me; store.set("game-me", me); start(); });
 $("optA").onclick = () => answer("a");

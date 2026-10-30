@@ -15,7 +15,10 @@ const COMMENTS = {
 };
 
 const json = (data, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8" } });
+  new Response(JSON.stringify(data), {
+    status,
+    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
+  });
 
 const keys = room => ({
   state: `${room}/state`,
@@ -38,14 +41,14 @@ export function parseLine(line) {
 }
 
 async function load(store, k) {
-  const state = (await store.get(k.state, { type: "json" })) ?? { round: 0, question: null, used: [], turn: null };
-  const pool = (await store.get(k.pool, { type: "json" })) ?? [];
-  return { state, pool };
+  const [state, pool] = await Promise.all([store.get(k.state, { type: "json" }), store.get(k.pool, { type: "json" })]);
+  return { state: state ?? { round: 0, question: null, used: [], turn: null }, pool: pool ?? [] };
 }
 
 async function view(store, k, me) {
-  const { state, pool } = await load(store, k);
-  const score = (await store.get(k.score, { type: "json" })) ?? { matches: 0, total: 0 };
+  // все чтения параллельно: на Netlify каждое обращение к хранилищу занимает заметное время
+  const [{ state, pool }, savedScore] = await Promise.all([load(store, k), store.get(k.score, { type: "json" })]);
+  const score = savedScore ?? { matches: 0, total: 0 };
   const poolInfo = {
     total: pool.length,
     left: pool.filter(q => !state.used.includes(q.id)).length,
@@ -67,15 +70,19 @@ async function view(store, k, me) {
   };
   if (!state.question) return base;
 
-  const answers = {};
-  for (const p of Object.keys(PLAYERS)) answers[p] = await store.get(k.answer(state.round, p));
-  const both = answers.vanya != null && answers.zlata != null;
+  const [vanya, zlata, comment] = await Promise.all([
+    store.get(k.answer(state.round, "vanya")),
+    store.get(k.answer(state.round, "zlata")),
+    store.get(k.comment(state.round)),
+  ]);
+  const answers = { vanya, zlata };
+  const both = vanya != null && zlata != null;
   return {
     ...base,
     mine: answers[me],
     partnerAnswered: answers[other(me)] != null,
     reveal: both ? answers : null,
-    comment: both ? await store.get(k.comment(state.round)) : null,
+    comment: both ? comment : null,
   };
 }
 

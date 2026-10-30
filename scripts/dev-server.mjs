@@ -9,16 +9,20 @@ import { handle } from "../netlify/functions/room.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = Number(process.env.PORT) || 8888;
+// SLOW_MS=300 имитирует задержку хранилища, как на Netlify
+const SLOW_MS = Number(process.env.SLOW_MS) || 0;
+const pause = () => (SLOW_MS ? new Promise(r => setTimeout(r, SLOW_MS)) : null);
 
 const memory = new Map();
 const store = {
   async get(key, opts) {
+    await pause();
     const v = memory.get(key);
     if (v == null) return null;
     return opts?.type === "json" ? JSON.parse(v) : v;
   },
-  async set(key, value) { memory.set(key, value); },
-  async setJSON(key, value) { memory.set(key, JSON.stringify(value)); },
+  async set(key, value) { await pause(); memory.set(key, value); },
+  async setJSON(key, value) { await pause(); memory.set(key, JSON.stringify(value)); },
 };
 
 http.createServer(async (req, res) => {
