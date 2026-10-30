@@ -86,6 +86,8 @@ details summary { cursor: pointer; color: var(--berry); font-weight: 700; }
 .mylist li span { min-width: 0; overflow-wrap: anywhere; }
 .mylist li.used span { color: var(--muted); text-decoration: line-through; }
 .mylist button { border: 0; background: none; color: var(--muted); font-size: 1rem; padding: 0 4px; }
+.danger { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding-top: 8px; }
+.danger .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 .burst { position: fixed; pointer-events: none; z-index: 5; color: var(--rose); font-size: 22px; animation: fly 1.4s ease-out forwards; }
 @keyframes fly { to { transform: translate(var(--dx), var(--dy)) scale(.4); opacity: 0; } }
 
@@ -166,6 +168,17 @@ details summary { cursor: pointer; color: var(--berry); font-weight: 700; }
       <ul class="mylist" id="mylist"></ul>
     </details>
   </form>
+
+  <section class="danger" id="resetBox" hidden>
+    <button class="link" id="resetAsk">Очистить всю игру</button>
+    <div id="resetConfirm" hidden>
+      <p>Удалятся <b>все вопросы</b> (твои и партнёра), ответы и счёт. Отменить это нельзя. Точно очистить?</p>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="resetYes">Да, очистить</button>
+        <button class="btn ghost" id="resetNo">Отмена</button>
+      </div>
+    </div>
+  </section>
 </main>
 
 <script>
@@ -246,7 +259,7 @@ function renderMine(s) {
 function render() {
   const s = state;
   renderHeader();
-  $("game").hidden = false; $("controls").hidden = false; $("addForm").hidden = false;
+  $("game").hidden = false; $("controls").hidden = false; $("addForm").hidden = false; $("resetBox").hidden = false;
   renderControls(s);
   renderMine(s);
 
@@ -256,7 +269,7 @@ function render() {
   $("choiceBox").hidden = !q || q.type !== "choice";
   $("openBox").hidden = !q || q.type !== "open";
   $("result").hidden = true;
-  $("qlabel").textContent = q ? `Раунд ${s.round} · ✍️ вопрос от ${FROM[q.author]}` : "";
+  $("qlabel").textContent = q ? `Раунд ${s.displayRound} · ✍️ вопрос от ${FROM[q.author]}` : "";
   if (!q) { $("status").textContent = ""; return; }
 
   const partner = me === "vanya" ? "zlata" : "vanya";
@@ -322,6 +335,12 @@ const draw = () => run(() => api("POST", { action: "draw", fromRound: state?.rou
 const answer = a => run(() => api("POST", { action: "answer", round: state.round, answer: a }));
 const removeQuestion = id => run(() => api("POST", { action: "remove", id }));
 const restart = () => run(() => api("POST", { action: "restart" }));
+const showResetConfirm = show => { $("resetConfirm").hidden = !show; $("resetAsk").hidden = show; };
+async function resetGame() {
+  showResetConfirm(false);
+  await run(() => api("POST", { action: "reset" }));
+  $("addMsg").textContent = "Игра очищена. Можно добавлять вопросы заново 💌";
+}
 
 async function addQuestions(e) {
   e.preventDefault();
@@ -343,7 +362,7 @@ function start() {
   clearInterval(timer);
   if (!me || !NAMES[me]) {
     $("pick").hidden = false;
-    for (const id of ["game", "controls", "addForm"]) $(id).hidden = true;
+    for (const id of ["game", "controls", "addForm", "resetBox"]) $(id).hidden = true;
     $("meLabel").textContent = "";
     return;
   }
@@ -365,6 +384,9 @@ $("openForm").onsubmit = e => {
 $("draw").onclick = draw;
 $("restart").onclick = restart;
 $("addForm").onsubmit = addQuestions;
+$("resetAsk").onclick = () => showResetConfirm(true);
+$("resetNo").onclick = () => showResetConfirm(false);
+$("resetYes").onclick = resetGame;
 start();
 </script>
 </body>

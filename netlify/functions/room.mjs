@@ -54,7 +54,17 @@ async function view(store, k, me) {
   };
   // свои вопросы видно, чужие остаются сюрпризом
   const myQuestions = pool.filter(q => q.author === me).map(q => ({ ...q, used: state.used.includes(q.id) }));
-  const base = { round: state.round, turn: state.turn, question: state.question, score, pool: poolInfo, myQuestions };
+  // после сброса номер раунда внутри продолжает расти (чтобы старые ответы не смешались),
+  // а игрокам показываем счёт с начала новой игры
+  const base = {
+    round: state.round,
+    displayRound: state.round - (state.base ?? 0),
+    turn: state.turn,
+    question: state.question,
+    score,
+    pool: poolInfo,
+    myQuestions,
+  };
   if (!state.question) return base;
 
   const answers = {};
@@ -119,6 +129,7 @@ export async function handle(req, store) {
     }
     const q = pickRandom(free);
     await store.setJSON(k.state, {
+      base: state.base ?? 0,
       round: state.round + 1,
       question: q,
       used: [...state.used, q.id],
@@ -131,6 +142,14 @@ export async function handle(req, store) {
   if (action === "restart") {
     const { state } = await load(store, k);
     await store.setJSON(k.state, { ...state, used: [] });
+    return json(await view(store, k, me));
+  }
+
+  if (action === "reset") {
+    const { state } = await load(store, k);
+    await store.setJSON(k.pool, []);
+    await store.setJSON(k.score, { matches: 0, total: 0 });
+    await store.setJSON(k.state, { round: state.round, base: state.round, question: null, used: [], turn: null });
     return json(await view(store, k, me));
   }
 
