@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Что бы ты выбрала?</title>
+<title>Наши вопросы</title>
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marck+Script&family=Comfortaa:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
-/* Одна карточка-вопрос по центру, два больших варианта, под ними счёт и тема */
+/* Карточка вопроса сверху, под ней кнопка «тянуть» с очередью, ниже пул и добавление своих вопросов */
 :root {
   --bg: #fdf1f4;
   --paper: #fffafb;
@@ -24,19 +24,6 @@
   --mono: "JetBrains Mono", ui-monospace, monospace;
   color-scheme: light;
 }
-/* режим 18+: те же токены, но глубже и теплее */
-body.spicy {
-  --bg: #2a1420;
-  --paper: #3a1c2b;
-  --blush: #5a2238;
-  --rose: #e0577f;
-  --berry: #ff7aa2;
-  --ink: #fbe6ee;
-  --muted: #c99aac;
-  --line: #5e2a40;
-  color-scheme: dark;
-}
-body { transition: background .4s, color .4s; }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html { padding-block: env(safe-area-inset-top, 0px) env(safe-area-inset-bottom, 0px); }
@@ -51,59 +38,61 @@ body {
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
 main { max-width: 640px; margin: 0 auto; padding-block: 28px 56px; display: flex; flex-direction: column; gap: 22px; }
-a { color: var(--berry); }
-h1 { font-family: var(--display); font-weight: 400; color: var(--berry); font-size: clamp(2.6rem, 10vw, 3.6rem); line-height: 1.1; margin: 0; text-align: center; text-wrap: balance; }
+h1, h2 { font-family: var(--display); font-weight: 400; color: var(--berry); margin: 0; text-align: center; text-wrap: balance; line-height: 1.1; }
+h1 { font-size: clamp(2.6rem, 10vw, 3.6rem); }
+h2 { font-size: 1.9rem; }
+p { margin: 0; }
 .eyebrow { font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-weight: 700; text-align: center; }
 button { font: inherit; cursor: pointer; }
-button:focus-visible, input:focus-visible { outline: 3px solid var(--berry); outline-offset: 3px; }
+button:focus-visible, textarea:focus-visible { outline: 3px solid var(--berry); outline-offset: 3px; }
 .btn { border: 0; border-radius: 999px; padding: 12px 26px; font-weight: 700; background: var(--berry); color: var(--paper); }
-.btn:disabled { opacity: .5; cursor: default; }
+.btn:disabled { opacity: .45; cursor: default; }
 .btn.ghost { background: var(--blush); color: var(--berry); }
+.btn.big { font-size: 1.1rem; padding: 16px 34px; }
+.link { border: 0; background: none; color: var(--berry); text-decoration: underline; padding: 0; font-size: .85rem; }
 .top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; font-size: .85rem; color: var(--muted); }
+.center { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
 .who { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 
 .card { background: var(--paper); border: 1px solid var(--line); border-radius: 24px; padding: 24px clamp(16px, 4vw, 28px); display: flex; flex-direction: column; gap: 16px; box-shadow: 0 20px 40px -32px var(--berry); }
-.topic-label { font-size: .8rem; color: var(--muted); text-align: center; }
+.label { font-size: .8rem; color: var(--muted); text-align: center; }
+.qtext { font-weight: 700; font-size: 1.2rem; text-align: center; overflow-wrap: anywhere; }
 .options { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: stretch; }
 .or { align-self: center; font-family: var(--display); font-size: 1.6rem; color: var(--rose); }
-.opt { position: relative; border: 2px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 18px; padding: 22px 14px 40px; font-weight: 700; font-size: 1.02rem; min-height: 130px; display: flex; align-items: center; justify-content: center; text-align: center; transition: transform .15s, border-color .2s, background .2s; min-width: 0; overflow-wrap: anywhere; }
+.opt { position: relative; border: 2px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 18px; padding: 22px 14px 40px; font-weight: 700; font-size: 1.02rem; min-height: 120px; display: flex; align-items: center; justify-content: center; text-align: center; transition: transform .15s, border-color .2s; min-width: 0; overflow-wrap: anywhere; }
 .opt:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--rose); }
 .opt:disabled { cursor: default; }
 .opt.mine { border-color: var(--berry); background: var(--blush); }
-.opt .tags { position: absolute; left: 0; right: 0; bottom: 10px; display: flex; gap: 6px; justify-content: center; }
+.tags { position: absolute; left: 0; right: 0; bottom: 10px; display: flex; gap: 6px; justify-content: center; }
 .tag { font-size: .72rem; padding: 2px 10px; border-radius: 999px; background: var(--berry); color: var(--paper); font-weight: 700; }
 .tag.z { background: var(--rose); }
+textarea { font: inherit; border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; background: var(--bg); color: var(--ink); width: 100%; min-width: 0; resize: vertical; }
+.answers { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ans { background: var(--bg); border: 1px solid var(--line); border-radius: 16px; padding: 14px; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.ans b { display: block; color: var(--berry); font-size: .8rem; margin-bottom: 4px; }
 .status { text-align: center; min-height: 1.6em; color: var(--muted); font-weight: 600; }
-.result { text-align: center; display: flex; flex-direction: column; gap: 6px; }
-.result b { font-family: var(--display); font-weight: 400; font-size: 2rem; color: var(--berry); }
-.result b.ok { color: var(--match); }
-.comment { font-size: .95rem; }
+.verdict { font-family: var(--display); font-size: 2rem; color: var(--berry); text-align: center; }
+.verdict.ok { color: var(--match); }
+.comment { text-align: center; }
 
-.modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.mode { border: 2px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 18px; padding: 14px 10px; font-weight: 700; display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.mode small { font-weight: 400; font-size: .75rem; color: var(--muted); }
-.mode[aria-pressed="true"] { border-color: var(--berry); background: var(--blush); }
-.gate18 { text-align: center; }
-.gate18 .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-.controls { display: flex; flex-direction: column; gap: 12px; }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.chip { border: 1px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 999px; padding: 6px 14px; font-size: .85rem; }
-.chip[aria-pressed="true"] { background: var(--berry); color: var(--paper); border-color: var(--berry); }
-.add { display: flex; flex-direction: column; gap: 10px; }
-.add h2 { margin: 0; font-family: var(--display); font-weight: 400; color: var(--berry); font-size: 1.9rem; text-align: center; }
-.add p { margin: 0; text-align: center; color: var(--muted); font-size: .88rem; }
-.add input { font: inherit; border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; background: var(--bg); color: var(--ink); min-width: 0; width: 100%; }
-.add .msg { min-height: 1.4em; color: var(--berry); font-weight: 600; }
-.score { text-align: center; font-family: var(--mono); color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
-.score strong { color: var(--berry); }
-.error { color: var(--berry); text-align: center; font-size: .9rem; min-height: 1.4em; }
+.turn { font-weight: 700; }
+.pool { font-family: var(--mono); font-size: .8rem; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
+.error { color: var(--berry); text-align: center; font-size: .9rem; min-height: 1.4em; font-weight: 600; }
+.hint { color: var(--muted); font-size: .85rem; }
+.hint code { font-family: var(--mono); background: var(--blush); color: var(--berry); border-radius: 6px; padding: 1px 6px; }
+details summary { cursor: pointer; color: var(--berry); font-weight: 700; }
+.mylist { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.mylist li { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; background: var(--bg); border-radius: 12px; padding: 8px 12px; font-size: .9rem; }
+.mylist li span { min-width: 0; overflow-wrap: anywhere; }
+.mylist li.used span { color: var(--muted); text-decoration: line-through; }
+.mylist button { border: 0; background: none; color: var(--muted); font-size: 1rem; padding: 0 4px; }
 .burst { position: fixed; pointer-events: none; z-index: 5; color: var(--rose); font-size: 22px; animation: fly 1.4s ease-out forwards; }
 @keyframes fly { to { transform: translate(var(--dx), var(--dy)) scale(.4); opacity: 0; } }
 
 @media (max-width: 480px) {
-  .options { grid-template-columns: 1fr; }
+  .options, .answers { grid-template-columns: 1fr; }
   .or { justify-self: center; }
-  .opt { min-height: 96px; }
+  .opt { min-height: 90px; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
@@ -115,10 +104,10 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--berry); out
     <span id="meLabel"></span>
   </div>
   <p class="eyebrow">Игра на двоих · Киев ↔ Львов</p>
-  <h1>Что бы ты выбрала?</h1>
+  <h1>Наши вопросы</h1>
 
-  <section class="card" id="pick" hidden>
-    <p style="text-align:center; margin:0">Кто играет на этом телефоне?</p>
+  <section class="card center" id="pick" hidden>
+    <p>Кто играет на этом телефоне?</p>
     <div class="who">
       <button class="btn" data-me="vanya">Я Ваня</button>
       <button class="btn" data-me="zlata">Я Злата</button>
@@ -126,47 +115,56 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--berry); out
   </section>
 
   <section class="card" id="game" hidden>
-    <p class="topic-label" id="topic"></p>
-    <div class="options">
-      <button class="opt" id="optA" data-c="a"><span class="txt"></span><span class="tags"></span></button>
-      <span class="or">или</span>
-      <button class="opt" id="optB" data-c="b"><span class="txt"></span><span class="tags"></span></button>
+    <p class="label" id="qlabel"></p>
+    <p class="status" id="empty"></p>
+
+    <div id="choiceBox" hidden>
+      <div class="options">
+        <button class="opt" id="optA"><span class="txt"></span><span class="tags"></span></button>
+        <span class="or">или</span>
+        <button class="opt" id="optB"><span class="txt"></span><span class="tags"></span></button>
+      </div>
     </div>
+
+    <div id="openBox" hidden>
+      <p class="qtext" id="qtext"></p>
+      <form id="openForm" style="display:flex; flex-direction:column; gap:10px; margin-top:14px">
+        <label for="openAnswer" hidden>Твой ответ</label>
+        <textarea id="openAnswer" rows="3" maxlength="500" placeholder="Твой ответ. Партнёр увидит его, когда ответит сам"></textarea>
+        <div style="display:flex; justify-content:center"><button class="btn" id="openSend">Ответить</button></div>
+      </form>
+      <div class="answers" id="openReveal" hidden>
+        <div class="ans"><b>Ваня</b><span id="ansV"></span></div>
+        <div class="ans"><b>Злата</b><span id="ansZ"></span></div>
+      </div>
+    </div>
+
     <p class="status" id="status" aria-live="polite"></p>
-    <div class="result" id="result" hidden>
-      <b id="verdict"></b>
+    <div id="result" hidden>
+      <p class="verdict" id="verdict"></p>
       <p class="comment" id="comment"></p>
     </div>
   </section>
 
-  <section class="controls" id="controls" hidden>
-    <div class="modes" role="group" aria-label="Режим игры">
-      <button class="mode" data-mode="cute">💗 Милое<small>нежные вопросы</small></button>
-      <button class="mode" data-mode="spicy">🔥 18+<small>только для нас двоих</small></button>
-    </div>
-    <div class="card gate18" id="gate18" hidden>
-      <p style="margin:0">Режим 18+ с откровенными вопросами про секс. Включай, только если вам обоим есть 18 и рядом никого 😏</p>
-      <div class="row">
-        <button class="btn" id="adultYes">Мне есть 18, включить</button>
-        <button class="btn ghost" id="adultNo">Назад к милому</button>
-      </div>
-    </div>
-    <div style="display:flex; justify-content:center">
-      <button class="btn" id="next">Новый вопрос ✨</button>
-    </div>
+  <section class="center" id="controls" hidden>
+    <p class="turn" id="turn"></p>
+    <button class="btn big" id="draw">Тянуть вопрос 🎲</button>
     <p class="error" id="error" aria-live="polite"></p>
-    <p class="score" id="score"></p>
+    <p class="pool" id="pool"></p>
+    <button class="link" id="restart" hidden>Начать круг заново</button>
   </section>
 
-  <form class="card add" id="addForm" hidden>
-    <h2>Свой вопрос</h2>
-    <p id="addHint"></p>
-    <label for="addA" hidden>Первый вариант</label>
-    <input id="addA" maxlength="120" placeholder="Первый вариант" required>
-    <label for="addB" hidden>Второй вариант</label>
-    <input id="addB" maxlength="120" placeholder="Второй вариант" required>
-    <div style="display:flex; justify-content:center"><button class="btn" id="addBtn">Добавить в игру 💌</button></div>
-    <p class="msg" id="addMsg" aria-live="polite"></p>
+  <form class="card" id="addForm" hidden>
+    <h2>Добавить в пул</h2>
+    <p class="hint">Вставь список: <b>один вопрос в строке</b>. Чтобы был выбор из двух, раздели варианты косой чертой: <code>Море / Горы</code>. Без черты будет обычный вопрос, на который каждый пишет свой ответ. Партнёр не увидит твои вопросы, пока они не выпадут.</p>
+    <label for="addText" hidden>Вопросы</label>
+    <textarea id="addText" rows="6" placeholder="Море / Горы&#10;Какой была твоя первая мысль обо мне?&#10;Утро / Вечер"></textarea>
+    <div style="display:flex; justify-content:center"><button class="btn" id="addBtn">Добавить 💌</button></div>
+    <p class="error" id="addMsg" aria-live="polite"></p>
+    <details id="mineBox">
+      <summary id="mineTitle">Мои вопросы</summary>
+      <ul class="mylist" id="mylist"></ul>
+    </details>
   </form>
 </main>
 
@@ -174,23 +172,20 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--berry); out
 const API = "/api/room";
 const ROOM = new URLSearchParams(location.search).get("room") || "vanya-zlata";
 const NAMES = { vanya: "Ваня", zlata: "Злата" };
-const MODE_NAMES = { cute: "Милое", spicy: "18+" };
+const FROM = { vanya: "Вани", zlata: "Златы" };
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const $ = id => document.getElementById(id);
-
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch {} }
 };
 
-let me = store.get("wyr-me");
-let mode = store.get("wyr-mode") === "spicy" ? "spicy" : "cute";
-let adult = store.get("wyr-adult") === "yes";
-let state = null, busy = false, lastRevealRound = 0, timer = null;
+let me = store.get("game-me");
+let state = null, busy = false, lastRevealRound = null, timer = null;
 
 function burst(n = 24) {
   if (reduce) return;
-  const x = innerWidth / 2, y = innerHeight / 2;
+  const x = innerWidth / 2, y = innerHeight / 3;
   for (let i = 0; i < n; i++) {
     const s = document.createElement("span");
     s.className = "burst"; s.textContent = "♥";
@@ -213,132 +208,131 @@ async function api(method, body) {
   return data;
 }
 
-function render() {
-  const partner = me === "vanya" ? "zlata" : "vanya";
-  $("meLabel").textContent = `Ты играешь за ${NAMES[me]} · `;
+function renderHeader() {
+  $("meLabel").textContent = `Ты: ${NAMES[me]} · `;
   const sw = document.createElement("button");
-  sw.textContent = "сменить"; sw.className = "chip"; sw.style.padding = "2px 10px";
-  sw.onclick = () => { me = null; store.set("wyr-me", ""); start(); };
+  sw.className = "link"; sw.textContent = "сменить";
+  sw.onclick = () => { me = null; store.set("game-me", ""); start(); };
   $("meLabel").appendChild(sw);
+}
 
-  $("game").hidden = false; $("controls").hidden = false;
-  renderAdd();
-  const s = state;
-  const sc = s.score || {};
-  const line = m => `${MODE_NAMES[m]}: <strong>${sc[m]?.matches ?? 0}</strong> из ${sc[m]?.total ?? 0}`;
-  $("score").innerHTML = `совпадений · ${line("cute")} · ${line("spicy")}`;
-  document.body.classList.toggle("spicy", s.question?.mode === "spicy");
+function renderControls(s) {
+  const partner = me === "vanya" ? "zlata" : "vanya";
+  const myTurn = !s.turn || s.turn === me;
+  $("turn").textContent = !s.turn ? "Тяните первый вопрос, кто угодно" : myTurn ? "Твоя очередь тянуть 🎲" : `Сейчас тянет ${NAMES[partner]}`;
+  $("draw").disabled = !myTurn || busy;
+  const p = s.pool;
+  $("pool").textContent = `в пуле ${p.total}: от Златы ${p.zlata}, от Вани ${p.vanya} · осталось ${p.left} · совпадений ${s.score.matches} из ${s.score.total}`;
+  $("restart").hidden = !(p.total && !p.left);
+}
 
-  if (!s.question) {
-    $("topic").textContent = "";
-    for (const id of ["optA", "optB"]) { $(id).hidden = true; }
-    document.querySelector(".or").hidden = true;
-    $("status").textContent = "Выбери режим и нажми «Новый вопрос». Он появится у вас обоих.";
-    $("result").hidden = true;
-    return;
+function renderMine(s) {
+  $("mineTitle").textContent = `Мои вопросы (${s.myQuestions.length})`;
+  const ul = $("mylist");
+  ul.innerHTML = "";
+  for (const q of s.myQuestions) {
+    const li = document.createElement("li");
+    if (q.used) li.className = "used";
+    const span = document.createElement("span");
+    span.textContent = q.type === "choice" ? `${q.a} / ${q.b}` : q.text;
+    const del = document.createElement("button");
+    del.type = "button"; del.textContent = "✕"; del.title = "Удалить";
+    del.onclick = () => removeQuestion(q.id);
+    li.append(span, del);
+    ul.appendChild(li);
   }
-  document.querySelector(".or").hidden = false;
-  const from = s.question.author ? `✍️ вопрос от ${s.question.author === "zlata" ? "Златы" : "Вани"}` : `вопрос ${s.question.number} из ${s.question.of}`;
-  $("topic").textContent = `Раунд ${s.round} · ${s.question.mode === "spicy" ? "🔥 18+" : "💗 Милое"} · ${from}`;
+}
 
-  for (const [id, c] of [["optA", "a"], ["optB", "b"]]) {
-    const el = $(id);
-    el.hidden = false;
-    el.querySelector(".txt").textContent = s.question[c];
-    el.disabled = Boolean(s.mine);
-    el.classList.toggle("mine", s.mine === c);
-    const tags = el.querySelector(".tags");
-    tags.innerHTML = "";
-    if (s.reveal) {
-      if (s.reveal.vanya === c) tags.insertAdjacentHTML("beforeend", `<span class="tag">Ваня</span>`);
-      if (s.reveal.zlata === c) tags.insertAdjacentHTML("beforeend", `<span class="tag z">Злата</span>`);
-    } else if (s.mine === c) {
-      tags.insertAdjacentHTML("beforeend", `<span class="tag${me === "zlata" ? " z" : ""}">ты</span>`);
+function render() {
+  const s = state;
+  renderHeader();
+  $("game").hidden = false; $("controls").hidden = false; $("addForm").hidden = false;
+  renderControls(s);
+  renderMine(s);
+
+  const q = s.question;
+  $("empty").hidden = Boolean(q);
+  $("empty").textContent = s.pool.total ? "Нажмите «Тянуть вопрос», и он появится у вас обоих." : "Пул пока пустой. Добавьте свои вопросы ниже 👇";
+  $("choiceBox").hidden = !q || q.type !== "choice";
+  $("openBox").hidden = !q || q.type !== "open";
+  $("result").hidden = true;
+  $("qlabel").textContent = q ? `Раунд ${s.round} · ✍️ вопрос от ${FROM[q.author]}` : "";
+  if (!q) { $("status").textContent = ""; return; }
+
+  const partner = me === "vanya" ? "zlata" : "vanya";
+  const answered = s.mine != null;
+
+  if (q.type === "choice") {
+    for (const [id, c] of [["optA", "a"], ["optB", "b"]]) {
+      const el = $(id);
+      el.querySelector(".txt").textContent = q[c];
+      el.disabled = answered;
+      el.classList.toggle("mine", s.mine === c);
+      const tags = el.querySelector(".tags");
+      tags.innerHTML = "";
+      if (s.reveal) {
+        if (s.reveal.vanya === c) tags.insertAdjacentHTML("beforeend", `<span class="tag">Ваня</span>`);
+        if (s.reveal.zlata === c) tags.insertAdjacentHTML("beforeend", `<span class="tag z">Злата</span>`);
+      } else if (s.mine === c) {
+        tags.insertAdjacentHTML("beforeend", `<span class="tag${me === "zlata" ? " z" : ""}">ты</span>`);
+      }
     }
+  } else {
+    $("qtext").textContent = q.text;
+    $("openForm").hidden = answered;
+    $("openReveal").hidden = !s.reveal;
+    if (s.reveal) { $("ansV").textContent = s.reveal.vanya; $("ansZ").textContent = s.reveal.zlata; }
   }
 
   if (s.reveal) {
-    const same = s.reveal.vanya === s.reveal.zlata;
-    $("status").textContent = "";
-    $("result").hidden = false;
-    $("verdict").textContent = same ? "Совпали! 💗" : "Разные ответы";
-    $("verdict").className = same ? "ok" : "";
-    $("comment").textContent = s.comment || "";
-    if (same && lastRevealRound !== s.round && lastRevealRound !== 0) burst();
+    $("status").textContent = q.type === "open" ? "Ответы открыты 💬" : "";
+    if (q.type === "choice") {
+      const same = s.reveal.vanya === s.reveal.zlata;
+      $("result").hidden = false;
+      $("verdict").textContent = same ? "Совпали! 💗" : "Разные ответы";
+      $("verdict").className = "verdict" + (same ? " ok" : "");
+      $("comment").textContent = s.comment || "";
+      if (same && lastRevealRound !== null && lastRevealRound !== s.round) burst();
+    }
     lastRevealRound = s.round;
   } else {
-    $("result").hidden = true;
-    if (lastRevealRound === 0) lastRevealRound = -1;
-    $("status").textContent = s.mine
-      ? (s.partnerChose ? "Открываем ответы…" : `Ждём, что выберет ${NAMES[partner]}…`)
-      : (s.partnerChose ? `${NAMES[partner]} уже выбрал${partner === "zlata" ? "а" : ""}. Твоя очередь!` : "Выбирай! Ответ откроется, когда выберете оба");
+    if (lastRevealRound === null) lastRevealRound = -1;
+    $("status").textContent = answered
+      ? `Ждём ответ ${FROM[partner]}…`
+      : s.partnerAnswered ? `${NAMES[partner]} уже ответил${partner === "zlata" ? "а" : ""}. Твоя очередь!` : "Ответы откроются, когда ответите оба";
   }
 }
 
-async function refresh() {
-  try {
-    state = await api("GET");
-    $("error").textContent = "";
-    render();
-  } catch (e) {
-    $("error").textContent = e.message;
-  }
-}
-
-async function choose(c) {
-  if (busy || !state?.question || state.mine) return;
-  busy = true;
-  state.mine = c; render();
-  try {
-    state = await api("POST", { action: "choose", round: state.round, choice: c });
-    render();
-  } catch (e) {
-    $("error").textContent = e.message;
-    await refresh();
-  } finally { busy = false; }
-}
-
-async function nextQuestion() {
+async function run(fn) {
   if (busy) return;
   busy = true;
-  const btn = $("next");
-  btn.disabled = true;
   try {
-    state = await api("POST", { action: "next", mode, fromRound: state?.round ?? 0 });
+    state = await fn();
     $("error").textContent = "";
-    render();
   } catch (e) {
     $("error").textContent = e.message;
   } finally {
-    busy = false; btn.disabled = false; btn.textContent = "Новый вопрос ✨";
+    busy = false;
+    if (state) render();
   }
 }
 
-function buildModes() {
-  document.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
-  const locked = mode === "spicy" && !adult;
-  $("gate18").hidden = !locked;
-  $("next").hidden = locked;
-  if (state) renderAdd();
-}
-function setMode(m) { mode = m; store.set("wyr-mode", m); buildModes(); }
+const refresh = () => run(() => api("GET"));
+const draw = () => run(() => api("POST", { action: "draw", fromRound: state?.round ?? 0 }));
+const answer = a => run(() => api("POST", { action: "answer", round: state.round, answer: a }));
+const removeQuestion = id => run(() => api("POST", { action: "remove", id }));
+const restart = () => run(() => api("POST", { action: "restart" }));
 
-function renderAdd() {
-  const locked = mode === "spicy" && !adult;
-  $("addForm").hidden = !me || locked;
-  const n = state?.customCount?.[mode] ?? 0;
-  $("addHint").textContent = `В режим «${MODE_NAMES[mode]}». Своих вопросов в нём: ${n}. Они будут выпадать вперемешку с остальными.`;
-}
-
-async function addQuestion(e) {
+async function addQuestions(e) {
   e.preventDefault();
-  const a = $("addA").value.trim(), b = $("addB").value.trim();
-  if (!a || !b) { $("addMsg").textContent = "Заполни оба варианта"; return; }
+  const text = $("addText").value;
+  if (!text.trim()) { $("addMsg").textContent = "Вставь хотя бы один вопрос"; return; }
   $("addBtn").disabled = true;
   try {
-    state = await api("POST", { action: "add", mode, a, b });
-    $("addA").value = ""; $("addB").value = "";
-    $("addMsg").textContent = "Добавлено! Попадётся в одном из следующих раундов 😉";
+    const res = await api("POST", { action: "add", text });
+    state = res;
+    $("addText").value = "";
+    $("addMsg").textContent = `Добавлено вопросов: ${res.added} 💌`;
     render();
   } catch (err) {
     $("addMsg").textContent = err.message;
@@ -348,7 +342,9 @@ async function addQuestion(e) {
 function start() {
   clearInterval(timer);
   if (!me || !NAMES[me]) {
-    $("pick").hidden = false; $("game").hidden = true; $("controls").hidden = true; $("addForm").hidden = true; $("meLabel").textContent = "";
+    $("pick").hidden = false;
+    for (const id of ["game", "controls", "addForm"]) $(id).hidden = true;
+    $("meLabel").textContent = "";
     return;
   }
   $("pick").hidden = true;
@@ -356,15 +352,19 @@ function start() {
   timer = setInterval(() => { if (!busy && document.visibilityState === "visible") refresh(); }, 2000);
 }
 
-document.querySelectorAll("[data-me]").forEach(b => b.onclick = () => { me = b.dataset.me; store.set("wyr-me", me); start(); });
-$("optA").onclick = () => choose("a");
-$("optB").onclick = () => choose("b");
-$("next").onclick = nextQuestion;
-document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => setMode(b.dataset.mode));
-$("adultYes").onclick = () => { adult = true; store.set("wyr-adult", "yes"); buildModes(); };
-$("adultNo").onclick = () => setMode("cute");
-$("addForm").onsubmit = addQuestion;
-buildModes();
+document.querySelectorAll("[data-me]").forEach(b => b.onclick = () => { me = b.dataset.me; store.set("game-me", me); start(); });
+$("optA").onclick = () => answer("a");
+$("optB").onclick = () => answer("b");
+$("openForm").onsubmit = e => {
+  e.preventDefault();
+  const v = $("openAnswer").value.trim();
+  if (!v) { $("error").textContent = "Напиши ответ"; return; }
+  $("openAnswer").value = "";
+  answer(v);
+};
+$("draw").onclick = draw;
+$("restart").onclick = restart;
+$("addForm").onsubmit = addQuestions;
 start();
 </script>
 </body>
