@@ -15,26 +15,43 @@ const keys = room => ({
   score: `${room}/score`,
   choice: (round, p) => `${room}/r${round}/${p}`,
   comment: round => `${room}/r${round}/comment`,
+  custom: mode => `${room}/custom/${mode}`,
 });
 
 const pickRandom = list => list[Math.floor(Math.random() * list.length)];
 const emptyScore = () => ({ cute: { matches: 0, total: 0 }, spicy: { matches: 0, total: 0 } });
 
 // Случайный вопрос, который ещё не попадался; когда все пройдены, круг начинается заново
-function makeQuestion(mode, used) {
-  const bank = BANKS[mode];
-  let free = bank.map((_, i) => i).filter(i => !used.includes(i));
-  if (!free.length) { used.length = 0; free = bank.map((_, i) => i); }
+function pickUnused(list, used) {
+  let free = list.map((_, i) => i).filter(i => !used.includes(i));
+  if (!free.length) { used.length = 0; free = list.map((_, i) => i); }
   const index = pickRandom(free);
   used.push(index);
+  return { index, left: free.length - 1 };
+}
+
+// Вопросы, которые вы написали сами, выпадают примерно в половине раундов,
+// пока не закончатся непройденные; потом снова идут вопросы из банка
+function makeQuestion(mode, used, custom) {
+  const usedCustom = (used[`${mode}Custom`] ??= []);
+  const freshCustom = custom.some((_, i) => !usedCustom.includes(i));
+  if (freshCustom && Math.random() < 0.5) {
+    const { index } = pickUnused(custom, usedCustom);
+    const q = custom[index];
+    return { a: q.a, b: q.b, mode, author: q.author };
+  }
+  const bank = BANKS[mode];
+  const { index, left } = pickUnused(bank, (used[mode] ??= []));
   const [a, b] = bank[index];
-  return { a, b, mode, number: bank.length - free.length + 1, of: bank.length };
+  return { a, b, mode, number: bank.length - left, of: bank.length };
 }
 
 async function view(store, k, me) {
   const state = (await store.get(k.state, { type: "json" })) ?? null;
   const score = (await store.get(k.score, { type: "json" })) ?? emptyScore();
-  if (!state) return { round: 0, question: null, score };
+  const customCount = {};
+  for (const m of Object.keys(BANKS)) customCount[m] = ((await store.get(k.custom(m), { type: "json" })) ?? []).length;
+  if (!state) return { round: 0, question: null, score, customCount };
   const picks = {};
   for (const p of Object.keys(PLAYERS)) picks[p] = await store.get(k.choice(state.round, p));
   const both = picks.vanya && picks.zlata;
@@ -47,6 +64,7 @@ async function view(store, k, me) {
     reveal: both ? picks : null,
     comment: both ? await store.get(k.comment(state.round)) : null,
     score,
+    customCount,
   };
 }
 
@@ -77,9 +95,9 @@ export async function handle(req, store) {
     const state = (await store.get(k.state, { type: "json" })) ?? { round: 0, used: { cute: [], spicy: [] } };
     // если второй игрок уже переключил вопрос, не переключаем ещё раз
     if (typeof body.fromRound === "number" && body.fromRound !== state.round) return json(await view(store, k, me));
-    const used = state.used ?? { cute: [], spicy: [] };
-    used[mode] ??= [];
-    const question = makeQuestion(mode, used[mode]);
+    const used = state.used ?? {};
+    const custom = (await store.get(k.custom(mode), { type: "json" })) ?? [];
+    const question = makeQuestion(mode, used, custom);
     await store.setJSON(k.state, { round: state.round + 1, question, used });
     return json(await view(store, k, me));
   }
@@ -102,6 +120,18 @@ export async function handle(req, store) {
       await store.setJSON(k.score, score);
       await store.set(k.comment(state.round), pickRandom(COMMENTS[mode][same ? "same" : "diff"]));
     }
+    return json(await view(store, k, me));
+  }
+
+  if (action === "add") {
+    const mode = BANKS[body.mode] ? body.mode : "cute";
+    const a = String(body.a ?? "").trim().slice(0, 120);
+    const b = String(body.b ?? "").trim().slice(0, 120);
+    if (!a || !b) return json({ error: "Заполни оба варианта" }, 400);
+    const custom = (await store.get(k.custom(mode), { type: "json" })) ?? [];
+    if (custom.length >= 500) return json({ error: "Своих вопросов уже 500, больше не помещается" }, 400);
+    custom.push({ a, b, author: me });
+    await store.setJSON(k.custom(mode), custom);
     return json(await view(store, k, me));
   }
 
