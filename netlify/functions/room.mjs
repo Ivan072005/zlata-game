@@ -1,4 +1,4 @@
-// Комната игры: общий пул вопросов от Вани и Златы, тянем по очереди.
+// Комната игры «Правда или действие»: общий пул вопросов и заданий от Вани и Златы, тянем по очереди.
 // Всё хранится в Netlify Blobs.
 import { getStore } from "@netlify/blobs";
 
@@ -12,6 +12,21 @@ const MAX_LEN = 300;
 const COMMENTS = {
   same: ["Совпали! Вы на одной волне 💗", "Одинаково! Это судьба ✨", "Даже думаете одинаково 🥰", "Вот это синхрон! 💞", "Совпали… запомните этот пункт 😏"],
   diff: ["Разные ответы. Отличный повод обсудить 😉", "Противоположности притягиваются 💫", "Придётся договариваться… лично 🔥", "Расскажите друг другу, почему так 🙂"],
+  ok: ["Засчитано! Смело 🔥", "Принято 💋", "Вот это да 😳 Засчитано", "Красиво сделано 💗"],
+  no: ["Не засчитано. Придётся переделать 😏", "Не верю! 😤", "Слабовато… в следующий раз постарайся 😈"],
+  refused: ["Слился 🙈 Это попадёт в историю", "Испугались? 😏", "Отказ засчитан… но мы запомним 🙈"],
+};
+
+const isDare = q => q.type === "dare";
+const emptyScore = () => ({
+  matches: 0,
+  total: 0,
+  dares: { vanya: { done: 0, failed: 0, refused: 0 }, zlata: { done: 0, failed: 0, refused: 0 } },
+});
+const withDefaults = score => {
+  const s = { ...emptyScore(), ...(score ?? {}) };
+  s.dares = { ...emptyScore().dares, ...(score?.dares ?? {}) };
+  return s;
 };
 
 const json = (data, status = 200) =>
@@ -31,10 +46,12 @@ const keys = room => ({
 const pickRandom = list => list[Math.floor(Math.random() * list.length)];
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
-// Строка «Море / Горы» превращается в выбор из двух, любая другая строка — в открытый вопрос
-export function parseLine(line) {
+// Строка «Море / Горы» превращается в выбор из двух, любая другая строка — в открытый вопрос.
+// Если добавляют действия, каждая строка — задание.
+export function parseLine(line, kind = "question") {
   const text = line.trim().slice(0, MAX_LEN);
   if (!text) return null;
+  if (kind === "dare") return { type: "dare", text };
   const parts = text.split("/").map(s => s.trim());
   if (parts.length === 2 && parts[0] && parts[1]) return { type: "choice", a: parts[0], b: parts[1] };
   return { type: "open", text };
@@ -48,12 +65,19 @@ async function load(store, k) {
 async function view(store, k, me) {
   // все чтения параллельно: на Netlify каждое обращение к хранилищу занимает заметное время
   const [{ state, pool }, savedScore] = await Promise.all([load(store, k), store.get(k.score, { type: "json" })]);
-  const score = savedScore ?? { matches: 0, total: 0 };
+  const score = withDefaults(savedScore);
+  const fresh = q => !state.used.includes(q.id);
+  const truths = pool.filter(q => !isDare(q));
+  const dares = pool.filter(isDare);
   const poolInfo = {
     total: pool.length,
-    left: pool.filter(q => !state.used.includes(q.id)).length,
+    left: pool.filter(fresh).length,
     vanya: pool.filter(q => q.author === "vanya").length,
     zlata: pool.filter(q => q.author === "zlata").length,
+    truths: truths.length,
+    truthsLeft: truths.filter(fresh).length,
+    dares: dares.length,
+    daresLeft: dares.filter(fresh).length,
   };
   // свои вопросы видно, чужие остаются сюрпризом
   const myQuestions = pool.filter(q => q.author === me).map(q => ({ ...q, used: state.used.includes(q.id) }));
@@ -63,6 +87,7 @@ async function view(store, k, me) {
     round: state.round,
     displayRound: state.round - (state.base ?? 0),
     turn: state.turn,
+    drawnBy: state.drawnBy ?? null,
     question: state.question,
     score,
     pool: poolInfo,
@@ -84,6 +109,41 @@ async function view(store, k, me) {
     reveal: both ? answers : null,
     comment: both ? comment : null,
   };
+}
+
+// Действие: исполнитель (кто тянул) жмёт «сделано» или «слиться», партнёр засчитывает или нет
+async function answerDare(store, k, me, state, answer) {
+  const performer = state.drawnBy;
+  const judge = other(performer);
+  const [mine, performerAnswer] = await Promise.all([
+    store.get(k.answer(state.round, me)),
+    store.get(k.answer(state.round, performer)),
+  ]);
+  if (mine != null) return json(await view(store, k, me));
+
+  let result = null;
+  if (me === performer) {
+    if (answer !== "done" && answer !== "refused") return json({ error: "Отметь: сделано или слиться" }, 400);
+    if (answer === "refused") result = "refused";
+  } else {
+    if (performerAnswer !== "done") return json({ error: `Сначала ${PLAYERS[performer]} должен${performer === "zlata" ? "на" : ""} выполнить действие` }, 409);
+    if (answer !== "ok" && answer !== "no") return json({ error: "Засчитай или не засчитай действие" }, 400);
+    result = answer;
+  }
+  await store.set(k.answer(state.round, me), answer);
+
+  if (result) {
+    const score = withDefaults(await store.get(k.score, { type: "json" }));
+    const key = { ok: "done", no: "failed", refused: "refused" }[result];
+    score.dares[performer][key] += 1;
+    await Promise.all([
+      store.setJSON(k.score, score),
+      store.set(k.comment(state.round), pickRandom(COMMENTS[result])),
+    ]);
+    // при отказе партнёру нечего засчитывать: закрываем раунд за него
+    if (result === "refused") await store.set(k.answer(state.round, judge), "-");
+  }
+  return json(await view(store, k, me));
 }
 
 // store передаётся снаружи, чтобы логику можно было тестировать и запускать локально
@@ -110,8 +170,9 @@ export async function handle(req, store) {
 
   if (action === "add") {
     const { pool } = await load(store, k);
-    const items = String(body.text ?? "").split("\n").map(parseLine).filter(Boolean);
-    if (!items.length) return json({ error: "Напиши хотя бы один вопрос" }, 400);
+    const kind = body.kind === "dare" ? "dare" : "question";
+    const items = String(body.text ?? "").split("\n").map(line => parseLine(line, kind)).filter(Boolean);
+    if (!items.length) return json({ error: kind === "dare" ? "Напиши хотя бы одно действие" : "Напиши хотя бы один вопрос" }, 400);
     if (pool.length + items.length > MAX_POOL) return json({ error: `В пуле помещается до ${MAX_POOL} вопросов` }, 400);
     for (const item of items) pool.push({ id: newId(), author: me, ...item });
     await store.setJSON(k.pool, pool);
@@ -130,11 +191,15 @@ export async function handle(req, store) {
     // если второй игрок уже вытянул вопрос, не тянем ещё раз
     if (typeof body.fromRound === "number" && body.fromRound !== state.round) return json(await view(store, k, me));
     if (state.turn && state.turn !== me) return json({ error: `Сейчас тянет ${PLAYERS[state.turn]}` }, 409);
-    const free = pool.filter(q => !state.used.includes(q.id));
+    const wantDare = body.kind === "dare";
+    const free = pool.filter(q => !state.used.includes(q.id) && isDare(q) === wantDare);
     if (!free.length) {
-      return json({ error: pool.length ? "Вопросы закончились. Добавьте новые или начните круг заново" : "Пул пустой. Добавьте свои вопросы ниже" }, 409);
+      const what = wantDare ? "Действия" : "Вопросы";
+      return json({ error: `${what} закончились. Добавьте новые или начните круг заново` }, 409);
     }
-    const q = pickRandom(free);
+    // действие выполняет тот, кто тянул, поэтому сначала берём задания, которые написал партнёр
+    const fromPartner = free.filter(q => q.author !== me);
+    const q = pickRandom(wantDare && fromPartner.length ? fromPartner : free);
     await store.setJSON(k.state, {
       base: state.base ?? 0,
       round: state.round + 1,
@@ -155,7 +220,7 @@ export async function handle(req, store) {
   if (action === "reset") {
     const { state } = await load(store, k);
     await store.setJSON(k.pool, []);
-    await store.setJSON(k.score, { matches: 0, total: 0 });
+    await store.setJSON(k.score, emptyScore());
     await store.setJSON(k.state, { round: state.round, base: state.round, question: null, used: [], turn: null });
     return json(await view(store, k, me));
   }
@@ -163,6 +228,7 @@ export async function handle(req, store) {
   if (action === "answer") {
     const { state } = await load(store, k);
     if (!state.question || body.round !== state.round) return json({ error: "Вопрос уже сменился, обнови страницу" }, 409);
+    if (isDare(state.question)) return answerDare(store, k, me, state, body.answer);
     let answer;
     if (state.question.type === "choice") {
       if (body.answer !== "a" && body.answer !== "b") return json({ error: "Выбери один из вариантов" }, 400);
@@ -177,7 +243,7 @@ export async function handle(req, store) {
     const partnerAnswer = await store.get(k.answer(state.round, other(me)));
     if (partnerAnswer != null && state.question.type === "choice") {
       const same = partnerAnswer === answer;
-      const score = (await store.get(k.score, { type: "json" })) ?? { matches: 0, total: 0 };
+      const score = withDefaults(await store.get(k.score, { type: "json" }));
       score.total += 1;
       if (same) score.matches += 1;
       await store.setJSON(k.score, score);
