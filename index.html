@@ -132,6 +132,28 @@ details summary { cursor: pointer; color: var(--berry); font-weight: 700; }
 
 .install { padding-top: 4px; }
 
+/* экран загрузки: сердце из Львова и сердце из Киева сливаются в одно */
+.splash { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: grid; place-items: center; transition: opacity .5s ease, visibility .5s; }
+.splash.out { opacity: 0; visibility: hidden; }
+.splash .stage { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.meet { position: relative; width: 190px; height: 76px; }
+.meet .h { position: absolute; top: 14px; font-size: 42px; line-height: 1; color: var(--berry); }
+.meet .l { left: 0; animation: goR 3.2s ease-in-out infinite; }
+.meet .r { right: 0; color: var(--rose); animation: goL 3.2s ease-in-out infinite; }
+.meet .city { position: absolute; bottom: -20px; font-size: .72rem; color: var(--muted); }
+.meet .cl { left: -8px; }
+.meet .cr { right: -4px; }
+.meet .one { position: absolute; left: 50%; top: 0; transform: translateX(-50%) scale(0); font-size: 64px; line-height: 1; color: var(--berry); animation: merge 3.2s ease-in-out infinite; }
+.splash .names { font-family: var(--display); font-size: 2.2rem; color: var(--berry); margin-top: 20px; }
+.splash .small { font-size: .8rem; color: var(--muted); letter-spacing: .08em; }
+@keyframes goR { 0%, 10% { transform: none; opacity: 1; } 50% { transform: translateX(74px); opacity: 1; } 55%, 100% { transform: translateX(74px); opacity: 0; } }
+@keyframes goL { 0%, 10% { transform: none; opacity: 1; } 50% { transform: translateX(-74px); opacity: 1; } 55%, 100% { transform: translateX(-74px); opacity: 0; } }
+@keyframes merge { 0%, 50% { transform: translateX(-50%) scale(0); } 62% { transform: translateX(-50%) scale(1.25); } 72% { transform: translateX(-50%) scale(1); } 82% { transform: translateX(-50%) scale(1.15); } 92%, 100% { transform: translateX(-50%) scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .meet .l, .meet .r { display: none; }
+  .meet .one { transform: translateX(-50%) scale(1); }
+}
+
 @media (max-width: 480px) {
   .options, .answers { grid-template-columns: 1fr; }
   .or { justify-self: center; }
@@ -141,6 +163,16 @@ details summary { cursor: pointer; color: var(--berry); font-weight: 700; }
 </style>
 </head>
 <body>
+<div class="splash" id="splash" aria-hidden="true">
+  <div class="stage">
+    <div class="meet">
+      <span class="h l">♥</span><span class="h r">♥</span><span class="one">♥</span>
+      <span class="city cl">Львов</span><span class="city cr">Киев</span>
+    </div>
+    <div class="names">Ваня & Злата</div>
+    <div class="small">468 км → 0</div>
+  </div>
+</div>
 <main>
   <div class="top">
     <span>💗 Ваня & Злата</span>
@@ -280,6 +312,26 @@ const store = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch {} }
 };
+
+// ===== Экран загрузки =====
+// При первом открытии за сессию анимация доигрывает до слияния сердец (~2.4 с), дальше прячется сразу, как всё готово
+const splashStart = performance.now();
+let splashSeen = false;
+try { splashSeen = sessionStorage.getItem("splash-seen") === "1"; } catch {}
+const SPLASH_MIN = splashSeen || reduce ? 300 : 2400;
+let splashHidden = false;
+function hideSplash() {
+  if (splashHidden) return;
+  splashHidden = true;
+  try { sessionStorage.setItem("splash-seen", "1"); } catch {}
+  const wait = Math.max(0, SPLASH_MIN - (performance.now() - splashStart));
+  setTimeout(() => {
+    const el = $("splash");
+    el.classList.add("out");
+    setTimeout(() => el.remove(), 600);
+  }, wait);
+}
+setTimeout(hideSplash, 6000); // запасной вариант, если сервер долго не отвечает
 
 let me = store.get("game-me");
 let code = store.get("game-code");
@@ -598,10 +650,11 @@ async function poll() {
         state = fresh;
         $("error").textContent = "";
         render();
+        hideSplash();
         if (event) notify(event);
       }
     } catch (e) {
-      if (!state) $("error").textContent = e.message;
+      if (!state) { $("error").textContent = e.message; hideSplash(); }
     }
   }
   if (!me || !code) return;
@@ -644,9 +697,10 @@ function start(lockMessage = "") {
     $("lockErr").textContent = lockMessage;
     $("codeInput").value = "";
     $("codeInput").focus();
+    hideSplash();
     return;
   }
-  if (!me || !NAMES[me]) { $("pick").hidden = false; return; }
+  if (!me || !NAMES[me]) { $("pick").hidden = false; hideSplash(); return; }
   poll();
 }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { clearUnread(); poll(); } });
