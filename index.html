@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Правда или действие</title>
+<title>Наши вопросы</title>
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marck+Script&family=Comfortaa:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
@@ -90,6 +90,11 @@ details summary { cursor: pointer; color: var(--berry); font-weight: 700; }
 .btn-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
 .draws { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 .btn.dare { background: var(--rose); }
+.modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mode { border: 2px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 18px; padding: 12px 10px; font-weight: 700; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.mode small { font-weight: 400; font-size: .75rem; color: var(--muted); }
+.mode[aria-pressed="true"] { border-color: var(--berry); background: var(--blush); }
+.mode:disabled { cursor: default; }
 .kinds { display: flex; gap: 8px; justify-content: center; }
 .kind { border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 999px; padding: 6px 16px; font-weight: 700; }
 .kind[aria-pressed="true"] { background: var(--berry); border-color: var(--berry); color: var(--paper); }
@@ -113,7 +118,12 @@ details summary { cursor: pointer; color: var(--berry); font-weight: 700; }
     <span id="meLabel"></span>
   </div>
   <p class="eyebrow">Игра на двоих · Киев ↔ Львов</p>
-  <h1>Правда или действие</h1>
+  <h1 id="title">Наши вопросы</h1>
+
+  <div class="modes" id="modes" role="group" aria-label="Режим игры" hidden>
+    <button class="mode" data-mode="questions">Вопросы 💬<small>пишем вопросы и отвечаем оба</small></button>
+    <button class="mode" data-mode="tod">Правда или действие 🔥<small>вопросы + задания друг другу</small></button>
+  </div>
 
   <section class="card center" id="pick" hidden>
     <p>Кто играет на этом телефоне?</p>
@@ -268,6 +278,20 @@ function renderControls(s) {
   const partner = me === "vanya" ? "zlata" : "vanya";
   const myTurn = !s.turn || s.turn === me;
   const p = s.pool;
+  if (s.mode === "questions") {
+    $("turn").textContent = !p.truths ? "Сначала добавьте вопросы 👇"
+      : !p.truthsLeft ? "Вопросы закончились: добавьте новые или начните круг заново"
+      : !s.turn ? "Тяните первый вопрос, кто угодно"
+      : myTurn ? "Твоя очередь тянуть 🎲" : `Сейчас тянет ${NAMES[partner]}`;
+    $("drawTruth").textContent = "Тянуть вопрос 🎲";
+    $("drawTruth").disabled = !myTurn || pending || !p.truthsLeft;
+    $("drawDare").hidden = true;
+    $("pool").textContent = `вопросов ${p.truths} (осталось ${p.truthsLeft}) · совпадений ${s.score.matches} из ${s.score.total}`;
+    $("restart").hidden = !(p.truths && !p.truthsLeft);
+    return;
+  }
+  $("drawTruth").textContent = "Правда 💬";
+  $("drawDare").hidden = false;
   $("turn").textContent = !p.total ? "Сначала добавьте вопросы и действия 👇"
     : !p.left ? "Всё вытянули: добавьте новое или начните круг заново"
     : !s.turn ? "Начинайте, кто угодно: правда или действие?"
@@ -304,12 +328,12 @@ function render() {
   const s = state;
   renderHeader();
   $("game").hidden = false; $("controls").hidden = false; $("addForm").hidden = false; $("resetBox").hidden = false;
+  renderMode(s);
   renderControls(s);
   renderMine(s);
 
   const q = s.question;
   $("empty").hidden = Boolean(q);
-  $("empty").textContent = s.pool.total ? "Выберите «Правда» или «Действие», и задание появится у вас обоих." : "Пул пока пустой. Добавьте вопросы и действия ниже 👇";
   $("choiceBox").hidden = !q || q.type !== "choice";
   $("openBox").hidden = !q || q.type !== "open";
   $("dareBox").hidden = !q || q.type !== "dare";
@@ -393,6 +417,26 @@ function renderDare(s, q) {
 
 const other = p => (p === "vanya" ? "zlata" : "vanya");
 
+function renderMode(s) {
+  const tod = s.mode === "tod";
+  $("modes").hidden = false;
+  document.querySelectorAll("[data-mode]").forEach(b => {
+    b.setAttribute("aria-pressed", String(b.dataset.mode === s.mode));
+    b.disabled = pending;
+  });
+  $("title").textContent = tod ? "Правда или действие" : "Наши вопросы";
+  document.title = $("title").textContent;
+  // в режиме вопросов добавлять можно только вопросы
+  document.querySelector(".kinds").hidden = !tod;
+  if (!tod && addKind !== "question") setAddKind("question");
+  const n = s.pool;
+  if (!s.question) {
+    $("empty").textContent = tod
+      ? (n.total ? "Выберите «Правда» или «Действие», и задание появится у вас обоих." : "Пул пока пустой. Добавьте вопросы и действия ниже 👇")
+      : (n.truths ? "Нажмите «Тянуть вопрос», и он появится у вас обоих." : "Вопросов пока нет. Добавьте свои ниже 👇");
+  }
+}
+
 function setAddKind(kind) {
   addKind = kind;
   document.querySelectorAll("[data-kind]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.kind === kind)));
@@ -467,7 +511,7 @@ function start() {
   state = null;
   if (!me || !NAMES[me]) {
     $("pick").hidden = false;
-    for (const id of ["game", "controls", "addForm", "resetBox"]) $(id).hidden = true;
+    for (const id of ["game", "controls", "addForm", "resetBox", "modes"]) $(id).hidden = true;
     $("meLabel").textContent = "";
     return;
   }
@@ -490,6 +534,9 @@ $("drawTruth").onclick = () => draw("truth");
 $("drawDare").onclick = () => draw("dare");
 document.querySelectorAll("[data-kind]").forEach(b => b.onclick = () => setAddKind(b.dataset.kind));
 setAddKind("question");
+document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => {
+  if (state?.mode !== b.dataset.mode) act({ action: "mode", mode: b.dataset.mode });
+});
 const dareAnswer = a => act({ action: "answer", round: state.round, answer: a });
 $("dareDo").onclick = () => dareAnswer("done");
 $("dareRefuse").onclick = () => dareAnswer("refused");

@@ -87,6 +87,7 @@ async function view(store, k, me) {
     round: state.round,
     displayRound: state.round - (state.base ?? 0),
     turn: state.turn,
+    mode: state.mode === "tod" ? "tod" : "questions",
     drawnBy: state.drawnBy ?? null,
     question: state.question,
     score,
@@ -201,6 +202,7 @@ export async function handle(req, store) {
     const fromPartner = free.filter(q => q.author !== me);
     const q = pickRandom(wantDare && fromPartner.length ? fromPartner : free);
     await store.setJSON(k.state, {
+      mode: state.mode,
       base: state.base ?? 0,
       round: state.round + 1,
       question: q,
@@ -208,6 +210,13 @@ export async function handle(req, store) {
       drawnBy: me,
       turn: other(me),
     });
+    return json(await view(store, k, me));
+  }
+
+  // режим общий для обоих: «questions» — только вопросы, «tod» — правда или действие
+  if (action === "mode") {
+    const { state } = await load(store, k);
+    await store.setJSON(k.state, { ...state, mode: body.mode === "tod" ? "tod" : "questions" });
     return json(await view(store, k, me));
   }
 
@@ -221,7 +230,7 @@ export async function handle(req, store) {
     const { state } = await load(store, k);
     await store.setJSON(k.pool, []);
     await store.setJSON(k.score, emptyScore());
-    await store.setJSON(k.state, { round: state.round, base: state.round, question: null, used: [], turn: null });
+    await store.setJSON(k.state, { mode: state.mode, round: state.round, base: state.round, question: null, used: [], turn: null });
     return json(await view(store, k, me));
   }
 
