@@ -1,0 +1,17 @@
+{
+  "name": "Ваня & Злата",
+  "short_name": "Наша игра",
+  "description": "Вопросы и «Правда или действие» на двоих",
+  "lang": "ru",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fdf1f4",
+  "theme_color": "#b8486c",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

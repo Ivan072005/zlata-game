@@ -7,6 +7,8 @@ export const config = { path: "/api/room" };
 const PLAYERS = { vanya: "Ваня", zlata: "Злата" };
 const other = p => (p === "vanya" ? "zlata" : "vanya");
 const MAX_POOL = 1000;
+// Код входа в игру. Можно поменять переменной окружения ROOM_CODE в настройках Netlify.
+const ROOM_CODE = () => String(process.env.ROOM_CODE || "812");
 const MAX_LEN = 300;
 
 const COMMENTS = {
@@ -21,11 +23,16 @@ const isDare = q => q.type === "dare";
 const emptyScore = () => ({
   matches: 0,
   total: 0,
-  dares: { vanya: { done: 0, failed: 0, refused: 0 }, zlata: { done: 0, failed: 0, refused: 0 } },
+  dares: {
+    vanya: { done: 0, failed: 0, refused: 0, skipped: 0 },
+    zlata: { done: 0, failed: 0, refused: 0, skipped: 0 },
+  },
 });
 const withDefaults = score => {
-  const s = { ...emptyScore(), ...(score ?? {}) };
-  s.dares = { ...emptyScore().dares, ...(score?.dares ?? {}) };
+  const base = emptyScore();
+  const s = { ...base, ...(score ?? {}) };
+  s.dares = {};
+  for (const p of Object.keys(PLAYERS)) s.dares[p] = { ...base.dares[p], ...(score?.dares?.[p] ?? {}) };
   return s;
 };
 
@@ -89,6 +96,7 @@ async function view(store, k, me) {
     turn: state.turn,
     mode: state.mode === "tod" ? "tod" : "questions",
     drawnBy: state.drawnBy ?? null,
+    penalty: Boolean(state.penalty),
     question: state.question,
     score,
     pool: poolInfo,
@@ -152,6 +160,13 @@ export async function handle(req, store) {
   const url = new URL(req.url);
   const room = (url.searchParams.get("room") || "vanya-zlata").replace(/[^a-z0-9-]/gi, "").slice(0, 40);
   const k = keys(room);
+
+  // без правильного кода сервер ничего не показывает и не меняет
+  if (req.headers.get("x-room-code") !== ROOM_CODE()) {
+    await new Promise(r => setTimeout(r, 700)); // замедляем подбор кода
+    return json({ error: "Неверный код", code: "bad_code" }, 401);
+  }
+  if (req.method === "GET" && url.searchParams.has("check")) return json({ ok: true });
 
   if (req.method === "GET") {
     const me = url.searchParams.get("me");
@@ -217,6 +232,35 @@ export async function handle(req, store) {
   if (action === "mode") {
     const { state } = await load(store, k);
     await store.setJSON(k.state, { ...state, mode: body.mode === "tod" ? "tod" : "questions" });
+    return json(await view(store, k, me));
+  }
+
+  // «Пропустить» правду в режиме «Правда или действие»: вместо неё штрафное действие
+  if (action === "skip") {
+    const { state, pool } = await load(store, k);
+    const q = state.question;
+    if (state.mode !== "tod" || !q || isDare(q) || state.drawnBy !== me || body.round !== state.round) {
+      return json({ error: "Пропустить можно только свою правду в режиме «Правда или действие»" }, 409);
+    }
+    if ((await store.get(k.answer(state.round, me))) != null) return json({ error: "Ты уже ответил(а) на этот вопрос" }, 409);
+    const used = state.used.filter(id => id !== q.id); // вопрос возвращается в пул
+    const free = pool.filter(d => isDare(d) && !used.includes(d.id));
+    if (!free.length) return json({ error: "Действий не осталось, придётся отвечать 😏" }, 409);
+    const fromPartner = free.filter(d => d.author !== me);
+    const dare = pickRandom(fromPartner.length ? fromPartner : free);
+    const score = withDefaults(await store.get(k.score, { type: "json" }));
+    score.dares[me].skipped += 1;
+    await Promise.all([
+      store.setJSON(k.score, score),
+      store.setJSON(k.state, {
+        ...state,
+        round: state.round + 1,
+        question: dare,
+        used: [...used, dare.id],
+        drawnBy: me,
+        penalty: true,
+      }),
+    ]);
     return json(await view(store, k, me));
   }
 
